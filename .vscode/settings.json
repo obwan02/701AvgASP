@@ -1,0 +1,11 @@
+{
+    "vhdl.formatter.indentation": "\t",
+    "vhdl.formatter.case.typename": "LowerCase",
+    "vhdl.formatter.case.keyword": "LowerCase",
+    "vhdl.formatter.align.all": true,
+    "vhdl.formatter.align.mode": "Global",
+    "vhdl.formatter.newline.generic": "NoNewLine",
+    "vhdl.formatter.newline.port": "NoNewLine",
+    "vhdl.formatter.newline.else": "NewLine",
+    "editor.formatOnSave": true,
+}

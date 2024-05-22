@@ -5,7 +5,7 @@ use work.TdmaMinTypes.all;
 
 entity avg_asp is
 	generic (
-		AVG_WINDOW_SIZE : natural
+		AVG_WINDOW_SIZE : natural := 4
 	);
 	port (
 		clk     : in  std_logic;
@@ -27,7 +27,6 @@ architecture rtl of avg_asp is
 	signal right_queue_write_enable : std_logic;
 
 	-- Intermediary signals
-	signal has_data                 : std_logic;
 	signal left_queue_full          : std_logic;
 	signal left_average             : signed(15 downto 0);
 	signal right_queue_full         : std_logic;
@@ -40,8 +39,6 @@ architecture rtl of avg_asp is
 begin
 
 	-- Setup intermediate signals
-	has_data <= '1' when noc_in.data(31 downto 28) = "1000" else
-		'0';
 	noc_out.data <= output_register;
 	noc_out.addr <= "0000" & config_dest;
 
@@ -49,8 +46,7 @@ begin
 		port map(
 			clk                      => clk,
 			reset                    => reset,
-			has_data                 => has_data,
-			data_channel             => noc_in.data(16),
+			pkt_in                   => noc_in.data,
 			left_queue_full          => left_queue_full,
 			right_queue_full         => right_queue_full,
 			left_queue_write_enable  => left_queue_write_enable,

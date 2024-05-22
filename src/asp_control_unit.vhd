@@ -9,8 +9,7 @@ entity avg_asp_control_unit is
 		reset                    : in  std_logic;
 
 		-- Inputs
-		has_data                 : in  std_logic;
-		data_channel             : in  std_logic;
+		pkt_in                   : in  std_logic_vector(31 downto 0);
 		left_queue_full          : in  std_logic;
 		right_queue_full         : in  std_logic;
 
@@ -35,7 +34,7 @@ begin
 
 	-- Control unit is implemented through a Mealy machine
 
-	LOGIC : process (state, has_data, data_channel, left_queue_full, right_queue_full) is
+	LOGIC : process (state, pkt_in, left_queue_full, right_queue_full) is
 	begin
 		left_queue_write_enable  <= '0';
 		right_queue_write_enable <= '0';
@@ -46,8 +45,8 @@ begin
 			when WAITING_FOR_PKT =>
 				next_state <= WAITING_FOR_PKT;
 
-				if has_data = '1' then
-					if data_channel = '1' then
+				if pkt_in(31 downto 28) = "1000" then
+					if pkt_in(16) = '1' then
 						next_state              <= SHIFTING_RIGHT_QUEUE;
 						left_queue_write_enable <= '1';
 					else
@@ -63,11 +62,31 @@ begin
 					send_output           <= '1';
 				end if;
 
+				if pkt_in(31 downto 28) = "1000" then
+					if pkt_in(16) = '1' then
+						next_state              <= SHIFTING_RIGHT_QUEUE;
+						left_queue_write_enable <= '1';
+					else
+						next_state               <= SHIFTING_LEFT_QUEUE;
+						right_queue_write_enable <= '1';
+					end if;
+				end if;
+
 			when SHIFTING_RIGHT_QUEUE =>
 				next_state <= WAITING_FOR_PKT;
 				if right_queue_full = '1' then
 					output_channel_select <= '1';
 					send_output           <= '1';
+				end if;
+
+				if pkt_in(31 downto 28) = "1000" then
+					if pkt_in(16) = '1' then
+						next_state              <= SHIFTING_RIGHT_QUEUE;
+						left_queue_write_enable <= '1';
+					else
+						next_state               <= SHIFTING_LEFT_QUEUE;
+						right_queue_write_enable <= '1';
+					end if;
 				end if;
 		end case;
 	end process;

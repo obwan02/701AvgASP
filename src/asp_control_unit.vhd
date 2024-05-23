@@ -17,7 +17,8 @@ entity avg_asp_control_unit is
 		left_queue_write_enable  : out std_logic;
 		right_queue_write_enable : out std_logic;
 		output_channel_select    : out std_logic;
-		send_output              : out std_logic
+		send_output              : out std_logic;
+		config_write_enable      : out std_logic
 	);
 end entity avg_asp_control_unit;
 
@@ -40,6 +41,7 @@ begin
 		right_queue_write_enable <= '0';
 		output_channel_select    <= '0';
 		send_output              <= '0';
+		config_write_enable      <= '0';
 
 		case state is
 			when WAITING_FOR_PKT =>
@@ -53,6 +55,8 @@ begin
 						next_state               <= SHIFTING_LEFT_QUEUE;
 						right_queue_write_enable <= '1';
 					end if;
+				elsif pkt_in(31 downto 28) = "1001" then
+					config_write_enable <= '1';
 				end if;
 
 			when SHIFTING_LEFT_QUEUE =>

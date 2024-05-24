@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.math_real;
 use work.TdmaMinTypes.all;
 
 entity avg_queue is
@@ -30,7 +29,7 @@ architecture rtl of avg_queue is
 	signal queue_total : signed((15 + log2Ceil(AVG_WINDOW_SIZE)) downto 0) := (others => '0');
 begin
 
-	assert (math_real.floor(math_real.log2(real(AVG_WINDOW_SIZE))) - math_real.log2(real(AVG_WINDOW_SIZE))) = 0.0 report "AVG_WINDOW_SIZE must be a power of 2" severity warning;
+	assert (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) = (31 downto 0 => '0') report "AVG_WINDOW_SIZE must be a power of 2" severity failure;
 
 	-- Custom shift right arithmetic b.c. numeric_std only has it 
 	-- in VHDL 2008

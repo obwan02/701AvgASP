@@ -17,6 +17,7 @@ entity avg_asp_control_unit is
 		left_queue_write_enable  : out std_logic;
 		right_queue_write_enable : out std_logic;
 		output_channel_select    : out std_logic;
+		config_write_enable      : out std_logic;
 		send_output              : out std_logic
 	);
 end entity avg_asp_control_unit;
@@ -40,53 +41,33 @@ begin
 		right_queue_write_enable <= '0';
 		output_channel_select    <= '0';
 		send_output              <= '0';
+		config_write_enable      <= '0';
+
+		next_state               <= WAITING_FOR_PKT;
+
+		if pkt_in(31 downto 28) = "1000" then
+			if pkt_in(16) = '1' then
+				next_state               <= SHIFTING_RIGHT_QUEUE;
+				right_queue_write_enable <= '1';
+			else
+				next_state              <= SHIFTING_LEFT_QUEUE;
+				left_queue_write_enable <= '1';
+			end if;
+		elsif pkt_in(31 downto 28) = "1111" then
+			config_write_enable <= '1';
+		end if;
 
 		case state is
-			when WAITING_FOR_PKT =>
-				next_state <= WAITING_FOR_PKT;
-
-				if pkt_in(31 downto 28) = "1000" then
-					if pkt_in(16) = '1' then
-						next_state              <= SHIFTING_RIGHT_QUEUE;
-						left_queue_write_enable <= '1';
-					else
-						next_state               <= SHIFTING_LEFT_QUEUE;
-						right_queue_write_enable <= '1';
-					end if;
-				end if;
-
+			when WAITING_FOR_PKT     => null;
 			when SHIFTING_LEFT_QUEUE =>
-				next_state <= WAITING_FOR_PKT;
 				if left_queue_full = '1' then
 					output_channel_select <= '0';
 					send_output           <= '1';
 				end if;
-
-				if pkt_in(31 downto 28) = "1000" then
-					if pkt_in(16) = '1' then
-						next_state              <= SHIFTING_RIGHT_QUEUE;
-						left_queue_write_enable <= '1';
-					else
-						next_state               <= SHIFTING_LEFT_QUEUE;
-						right_queue_write_enable <= '1';
-					end if;
-				end if;
-
 			when SHIFTING_RIGHT_QUEUE =>
-				next_state <= WAITING_FOR_PKT;
 				if right_queue_full = '1' then
 					output_channel_select <= '1';
 					send_output           <= '1';
-				end if;
-
-				if pkt_in(31 downto 28) = "1000" then
-					if pkt_in(16) = '1' then
-						next_state              <= SHIFTING_RIGHT_QUEUE;
-						left_queue_write_enable <= '1';
-					else
-						next_state               <= SHIFTING_LEFT_QUEUE;
-						right_queue_write_enable <= '1';
-					end if;
 				end if;
 		end case;
 	end process;

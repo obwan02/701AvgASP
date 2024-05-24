@@ -33,7 +33,7 @@ begin
 
 	-- Custom shift right arithmetic b.c. numeric_std only has it 
 	-- in VHDL 2008
-	average       <= queue_total(queue_total'high) & queue_total((14 + log2Ceil(AVG_WINDOW_SIZE)) downto log2Ceil(AVG_WINDOW_SIZE));
+	average       <= resize(queue_total / AVG_WINDOW_SIZE, 16);
 	average_valid <= '1' when avg_queue(AVG_WINDOW_SIZE - 1)(16) = '1' else
 		'0';
 

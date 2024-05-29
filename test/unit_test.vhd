@@ -3,13 +3,13 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.TdmaMinTypes.all;
 
-entity test_toplevel is
+entity unit_test is
 	port (
 		noc_out : out tdma_min_port
 	);
-end entity test_toplevel;
+end entity unit_test;
 
-architecture rtl of test_toplevel is
+architecture rtl of unit_test is
 	signal clk    : std_logic := '0';
 	signal reset  : std_logic := '0';
 	signal noc_in : tdma_min_port;
@@ -38,11 +38,11 @@ begin
 
 	TESTING_SIGNALS : process
 	begin
-		wait for 40 ns;
+		wait for 50 ns;
+		wait for 0 ns;
 		noc_in.data <= "1000" & "0000" & "0000000" & '1' & x"ABCD";
 		wait for 20 ns;
-		noc_in.data <= (others => '0');
-		wait for 40 ns;
+		wait for 0 ns;
 		noc_in.data <= "1000" & "0000" & "0000000" & '0' & x"B0FF";
 		wait for 20 ns;
 		noc_in.data <= (others => '0');

@@ -12,6 +12,7 @@ entity avg_asp_control_unit is
 		pkt_in                   : in  std_logic_vector(31 downto 0);
 		left_queue_full          : in  std_logic;
 		right_queue_full         : in  std_logic;
+		passthrough              : in  std_logic;
 
 		-- Outputs
 		left_queue_write_enable  : out std_logic;
@@ -42,16 +43,23 @@ begin
 		output_channel_select    <= '0';
 		send_output              <= '0';
 		config_write_enable      <= '0';
-
 		next_state               <= WAITING_FOR_PKT;
 
 		if pkt_in(31 downto 28) = "1000" then
 			if pkt_in(16) = '1' then
-				next_state               <= SHIFTING_RIGHT_QUEUE;
 				right_queue_write_enable <= '1';
+				if passthrough = '1' then
+					send_output <= '1';
+				else
+					next_state <= SHIFTING_RIGHT_QUEUE;
+				end if;
 			else
-				next_state              <= SHIFTING_LEFT_QUEUE;
 				left_queue_write_enable <= '1';
+				if passthrough = '1' then
+					send_output <= '1';
+				else
+					next_state <= SHIFTING_LEFT_QUEUE;
+				end if;
 			end if;
 		elsif pkt_in(31 downto 28) = "1111" then
 			config_write_enable <= '1';

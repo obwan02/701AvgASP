@@ -54,6 +54,7 @@ begin
 			pkt_in                   => noc_in.data,
 			left_queue_full          => left_queue_full,
 			right_queue_full         => right_queue_full,
+			passthrough              => config_passthrough,
 			left_queue_write_enable  => left_queue_write_enable,
 			right_queue_write_enable => right_queue_write_enable,
 			output_channel_select    => output_channel_select,

@@ -40,8 +40,7 @@ begin
 	SHIFT_QUEUE : process (clk, reset)
 	begin
 		if reset = '1' then
-			avg_queue   <= (others => (others => '0'));
-			queue_total <= (others => '0');
+			avg_queue <= (others => (others => '0'));
 		elsif rising_edge(clk) then
 			if write_enable = '1' then
 				-- Put in data to the start of the queue. 
@@ -51,9 +50,21 @@ begin
 					avg_queue(i + 1) <= avg_queue(i);
 				end loop;
 
+			end if;
+		end if;
+	end process;
+
+	TOTAL_PROCESS : process (clk, reset)
+	begin
+
+		if reset = '1' then
+			queue_total <= (others => '0');
+		elsif rising_edge(clk) then
+			if write_enable = '1' then
 				queue_total <= queue_total + signed(in_data(15 downto 0)) - signed(avg_queue(avg_queue'high)(15 downto 0));
 			end if;
 		end if;
+
 	end process;
 
 end architecture;

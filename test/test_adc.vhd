@@ -44,8 +44,10 @@ begin
 			data := std_logic_vector(to_signed(word, 32));
 			channel_0 <= signed(data(15 downto 0));
 			channel_1 <= signed(data(31 downto 16));
+			wait for 0 ns; -- Wait one delta cycle so that registers have time to update
 			send.data <= x"8000" & data(15 downto 0);
 			wait for 20 ns;
+			wait for 0 ns; -- Wait one delta cycle so that registers have time to update
 			send.data <= x"8001" & data(31 downto 16);
 			wait for 20 ns;
 			send.data <= (others => '0');

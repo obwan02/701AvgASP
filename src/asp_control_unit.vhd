@@ -13,6 +13,7 @@ entity avg_asp_control_unit is
 		left_queue_full          : in  std_logic;
 		right_queue_full         : in  std_logic;
 		passthrough              : in  std_logic;
+		enable                   : in  std_logic;
 
 		-- Outputs
 		left_queue_write_enable  : out std_logic;
@@ -36,7 +37,7 @@ begin
 
 	-- Control unit is implemented through a Mealy machine
 
-	LOGIC : process (state, pkt_in, left_queue_full, right_queue_full) is
+	LOGIC : process (state, enable, passthrough, pkt_in, left_queue_full, right_queue_full) is
 	begin
 		left_queue_write_enable  <= '0';
 		right_queue_write_enable <= '0';
@@ -49,14 +50,14 @@ begin
 			if pkt_in(16) = '1' then
 				right_queue_write_enable <= '1';
 				if passthrough = '1' then
-					send_output <= '1';
+					send_output <= enable;
 				else
 					next_state <= SHIFTING_RIGHT_QUEUE;
 				end if;
 			else
 				left_queue_write_enable <= '1';
 				if passthrough = '1' then
-					send_output <= '1';
+					send_output <= enable;
 				else
 					next_state <= SHIFTING_LEFT_QUEUE;
 				end if;
@@ -70,12 +71,12 @@ begin
 			when SHIFTING_LEFT_QUEUE =>
 				if left_queue_full = '1' then
 					output_channel_select <= '0';
-					send_output           <= '1';
+					send_output           <= enable;
 				end if;
 			when SHIFTING_RIGHT_QUEUE =>
 				if right_queue_full = '1' then
 					output_channel_select <= '1';
-					send_output           <= '1';
+					send_output           <= enable;
 				end if;
 		end case;
 	end process;

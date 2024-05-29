@@ -27,13 +27,21 @@ architecture rtl of avg_queue is
 	-- Registers
 	signal avg_queue   : avg_queue_t                                       := (others => (others => '0'));
 	signal queue_total : signed((15 + log2Ceil(AVG_WINDOW_SIZE)) downto 0) := (others => '0');
-begin
 
-	assert (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) = (31 downto 0 => '0') report "AVG_WINDOW_SIZE must be a power of 2" severity failure;
+begin
 
 	-- Custom shift right arithmetic b.c. numeric_std only has it 
 	-- in VHDL 2008
-	average       <= resize(queue_total / AVG_WINDOW_SIZE, 16);
+	DIV_GEN : if (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) = (31 downto 0 => '0') generate
+		average <= signed(queue_total(queue_total'high) & queue_total(14 + log2Ceil(AVG_WINDOW_SIZE) downto log2Ceil(AVG_WINDOW_SIZE)));
+
+	end generate;
+
+	DIV_GEN2 : if (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) /= (31 downto 0 => '0') generate
+		assert 0 = 1 report "Avg ASP will have reduced performance if AVG_WINDOW_SIZE is not a power of 2" severity failure;
+		average <= resize(queue_total / AVG_WINDOW_SIZE, 16);
+	end generate;
+
 	average_valid <= '1' when avg_queue(AVG_WINDOW_SIZE - 1)(16) = '1' else
 		'0';
 

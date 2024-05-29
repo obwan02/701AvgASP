@@ -35,7 +35,7 @@ architecture rtl of avg_asp is
 
 	-- Configure
 	signal config_dest              : std_logic_vector(3 downto 0) := "0000";
-	signal config_disable           : std_logic                    := '0';
+	signal config_enable            : std_logic                    := '0';
 	signal config_passthrough       : std_logic                    := '0';
 	signal config_flush             : std_logic                    := '0';
 
@@ -43,7 +43,8 @@ architecture rtl of avg_asp is
 begin
 
 	-- Setup intermediate signals
-	noc_out.data <= output_register;
+	noc_out.data <= output_register when send_output = '1' else
+		(others => '0');
 	noc_out.addr <= "0000" & config_dest;
 	flush        <= config_flush or reset;
 
@@ -55,6 +56,7 @@ begin
 			left_queue_full          => left_queue_full,
 			right_queue_full         => right_queue_full,
 			passthrough              => config_passthrough,
+			enable                   => config_enable,
 			left_queue_write_enable  => left_queue_write_enable,
 			right_queue_write_enable => right_queue_write_enable,
 			output_channel_select    => output_channel_select,
@@ -100,7 +102,7 @@ begin
 	begin
 		if reset = '1' then
 			config_dest        <= "0000";
-			config_disable     <= '0';
+			config_enable      <= '1';
 			config_passthrough <= '0';
 			config_flush       <= '0';
 		elsif rising_edge(clk) then
@@ -110,7 +112,7 @@ begin
 
 			if config_write_enable = '1' then
 				config_dest        <= noc_in.data(27 downto 24);
-				config_disable     <= not noc_in.data(22);
+				config_enable      <= noc_in.data(22);
 				config_passthrough <= noc_in.data(23);
 				config_flush       <= noc_in.data(21);
 			end if;
@@ -121,9 +123,9 @@ begin
 		variable right_value : std_logic_vector(15 downto 0);
 		variable left_value  : std_logic_vector(15 downto 0);
 	begin
-		if config_passthrough = '1' then
+		if config_passthrough = '1' and noc_in.data(31 downto 28) /= "1111" then
 			left_value  := std_logic_vector(noc_in.data(15 downto 0));
-			right_value := std_logic_vector(right_average(15 downto 0));
+			right_value := std_logic_vector(noc_in.data(15 downto 0));
 		else
 			left_value  := std_logic_vector(left_average);
 			right_value := std_logic_vector(right_average);
@@ -132,14 +134,10 @@ begin
 		if reset = '1' then
 			output_register <= (others => '0');
 		elsif rising_edge(clk) then
-			if send_output = '1' and config_disable /= '1' then
-				if output_channel_select = '1' then
-					output_register <= "1000" & config_dest & "0000000" & '1' & right_value;
-				else
-					output_register <= "1000" & config_dest & "0000000" & '0' & left_value;
-				end if;
+			if output_channel_select = '1' then
+				output_register <= "1000" & config_dest & "0000000" & '1' & right_value;
 			else
-				output_register <= (others => '0');
+				output_register <= "1000" & config_dest & "0000000" & '0' & left_value;
 			end if;
 		end if;
 	end process;

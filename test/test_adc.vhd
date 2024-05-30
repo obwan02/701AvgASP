@@ -2,7 +2,6 @@ library ieee;
 use ieee.numeric_std.all;
 use ieee.std_logic_1164.all;
 
-library work;
 use work.TdmaMinTypes.all;
 
 entity test_adc is
@@ -19,7 +18,6 @@ end entity;
 architecture sim of test_adc is
 
 	signal channel_0 : signed(15 downto 0);
-	signal channel_1 : signed(15 downto 0);
 
 begin
 
@@ -43,13 +41,10 @@ begin
 			read(audio, word);
 			data := std_logic_vector(to_signed(word, 32));
 			channel_0 <= signed(data(15 downto 0));
-			channel_1 <= signed(data(31 downto 16));
 			wait for 0 ns; -- Wait one delta cycle so that registers have time to update
 			send.data <= x"8000" & data(15 downto 0);
 			wait for 20 ns;
-			wait for 0 ns; -- Wait one delta cycle so that registers have time to update
-			send.data <= x"8001" & data(31 downto 16);
-			wait for 20 ns;
+			wait for 0 ns;
 			send.data <= (others => '0');
 			wait for 280 ns;
 		end loop;

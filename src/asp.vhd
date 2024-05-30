@@ -18,79 +18,95 @@ end entity avg_asp;
 
 architecture rtl of avg_asp is
 	-- Registers
-	signal output_register          : std_logic_vector(31 downto 0);
+	signal output_register     : std_logic_vector(31 downto 0);
 
 	-- Control signals
-	signal send_output              : std_logic;
-	signal output_channel_select    : std_logic;
-	signal left_queue_write_enable  : std_logic;
-	signal right_queue_write_enable : std_logic;
-	signal config_write_enable      : std_logic;
+	signal send_output         : std_logic;
+	signal queue_write_request : std_logic;
+	signal queue_read_request  : std_logic;
+	signal config_write_enable : std_logic;
+	signal total_write_enable  : std_logic;
 
 	-- Intermediary signals
-	signal left_queue_full          : std_logic;
-	signal left_average             : signed(15 downto 0);
-	signal right_queue_full         : std_logic;
-	signal right_average            : signed(15 downto 0);
+	signal queue_full          : std_logic;
+	signal average             : unsigned(15 downto 0);
+	signal queue_total         : unsigned((15 + log2Ceil(AVG_WINDOW_SIZE)) downto 0) := (others => '0');
+	signal queue_out           : std_logic_vector(15 downto 0);
+	signal noc_value_reg       : std_logic_vector(15 downto 0);
 
 	-- Configure
-	signal config_dest              : std_logic_vector(3 downto 0) := "0000";
-	signal config_enable            : std_logic                    := '0';
-	signal config_passthrough       : std_logic                    := '0';
-	signal config_flush             : std_logic                    := '0';
+	signal config_dest         : std_logic_vector(3 downto 0) := "0010";
+	signal config_enable       : std_logic                    := '1';
+	signal config_passthrough  : std_logic                    := '0';
+	signal config_flush        : std_logic                    := '0';
 
-	signal flush                    : std_logic                    := '0';
+	signal flush               : std_logic                    := '0';
 begin
 
 	-- Setup intermediate signals
-	noc_out.data <= output_register when send_output = '1' else
-		(others => '0');
 	noc_out.addr <= "0000" & config_dest;
 	flush        <= config_flush or reset;
 
 	control_unit : entity work.avg_asp_control_unit
 		port map(
-			clk                      => clk,
-			reset                    => flush,
-			pkt_in                   => noc_in.data,
-			left_queue_full          => left_queue_full,
-			right_queue_full         => right_queue_full,
-			passthrough              => config_passthrough,
-			enable                   => config_enable,
-			left_queue_write_enable  => left_queue_write_enable,
-			right_queue_write_enable => right_queue_write_enable,
-			output_channel_select    => output_channel_select,
-			config_write_enable      => config_write_enable,
-			send_output              => send_output
+			clk                 => clk,
+			reset               => flush,
+			pkt_in              => noc_in.data,
+			queue_full          => queue_full,
+			passthrough         => config_passthrough,
+			enable              => config_enable,
+			queue_read_request  => queue_read_request,
+			queue_write_request => queue_write_request,
+			total_write_enable  => total_write_enable,
+			config_write_enable => config_write_enable,
+			send_output         => send_output
 		);
 
-	-- TODO: Assert AVG_WINDOW_SIZE is a power of 2
-
-	left_channel_queue : entity work.avg_queue
+	ip_queue_inst : entity work.ip_queue
 		generic map(
-			AVG_WINDOW_SIZE => AVG_WINDOW_SIZE
+			DEPTH => AVG_WINDOW_SIZE
 		)
 		port map(
-			clk           => clk,
-			reset         => flush,
-			in_data       => noc_in.data(15 downto 0),
-			write_enable  => left_queue_write_enable,
-			average_valid => left_queue_full,
-			average       => left_average
+			aclr  => flush,
+			clock => clk,
+			data  => noc_value_reg,
+			rdreq => queue_read_request,
+			wrreq => queue_write_request,
+			full  => queue_full,
+			q     => queue_out
 		);
 
-	right_channel_queue : entity work.avg_queue
-		generic map(
-			AVG_WINDOW_SIZE => AVG_WINDOW_SIZE
-		)
-		port map(
-			clk           => clk,
-			reset         => flush,
-			in_data       => noc_in.data(15 downto 0),
-			write_enable  => right_queue_write_enable,
-			average_valid => right_queue_full,
-			average       => right_average
-		);
+	QUEUE_TOTAL_WRITE : process (clk, flush)
+	begin
+		if flush = '1' then
+			queue_total <= (others => '0');
+		elsif rising_edge(clk) then
+			if total_write_enable = '1' then
+				queue_total <= queue_total + unsigned(noc_value_reg) - unsigned(queue_out);
+			end if;
+		end if;
+	end process;
+
+	NOC_REG_WRITE : process (clk, reset)
+	begin
+		if reset = '1' then
+			noc_value_reg <= (others => '0');
+		elsif rising_edge(clk) then
+			if noc_in.data(31 downto 28) = "1000" then
+				noc_value_reg <= noc_in.data(15 downto 0);
+			end if;
+		end if;
+	end process;
+
+	DIV_GEN : if (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) = (31 downto 0 => '0') generate
+		average <= queue_total(15 + log2Ceil(AVG_WINDOW_SIZE) downto log2Ceil(AVG_WINDOW_SIZE));
+
+	end generate;
+
+	DIV_GEN2 : if (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) /= (31 downto 0 => '0') generate
+		assert 0 = 1 report "Avg ASP will have reduced performance if AVG_WINDOW_SIZE is not a power of 2" severity failure;
+		average <= resize(queue_total / AVG_WINDOW_SIZE, 16);
+	end generate;
 
 	-- CONFIG PACKET STRUCTURE
 	-- +------------+------------+------+------+-------+------------+-----------+----------+
@@ -119,27 +135,20 @@ begin
 		end if;
 	end process;
 
-	SEND_PKT : process (clk, reset, left_average, right_average, config_passthrough, noc_in)
-		variable right_value : std_logic_vector(15 downto 0);
-		variable left_value  : std_logic_vector(15 downto 0);
+	SEND_PKT : process (average, config_passthrough, config_enable, config_dest, noc_in, send_output)
+		variable out_value : std_logic_vector(15 downto 0);
 	begin
-		if config_passthrough = '1' and noc_in.data(31 downto 28) /= "1111" then
-			left_value  := std_logic_vector(noc_in.data(15 downto 0));
-			right_value := std_logic_vector(noc_in.data(15 downto 0));
+
+		if config_enable /= '1' then
+			noc_out.data <= (others => '0');
+		elsif config_passthrough = '1' then
+			noc_out.data <= noc_in.data;
+		elsif send_output = '1' then
+			noc_out.data <= "1000" & config_dest & x"00" & std_logic_vector(average);
 		else
-			left_value  := std_logic_vector(left_average);
-			right_value := std_logic_vector(right_average);
+			noc_out.data <= (others => '0');
 		end if;
 
-		if reset = '1' then
-			output_register <= (others => '0');
-		elsif rising_edge(clk) then
-			if output_channel_select = '1' then
-				output_register <= "1000" & config_dest & "0000000" & '1' & right_value;
-			else
-				output_register <= "1000" & config_dest & "0000000" & '0' & left_value;
-			end if;
-		end if;
 	end process;
 
 end architecture;

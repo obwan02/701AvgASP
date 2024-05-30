@@ -38,14 +38,18 @@ begin
 
 	TESTING_SIGNALS : process
 	begin
-		wait for 50 ns;
+		wait until rising_edge(clk);
 		wait for 0 ns;
 		noc_in.data <= "1000" & "0000" & "0000000" & '1' & x"ABCD";
-		wait for 20 ns;
+		wait until rising_edge(clk);
 		wait for 0 ns;
-		noc_in.data <= "1000" & "0000" & "0000000" & '0' & x"B0FF";
-		wait for 20 ns;
 		noc_in.data <= (others => '0');
+		wait until rising_edge(clk);
+		wait for 0 ns;
+		wait until rising_edge(clk);
+		wait for 0 ns;
+		wait until rising_edge(clk);
+		wait for 0 ns;
 	end process;
 
 end architecture;

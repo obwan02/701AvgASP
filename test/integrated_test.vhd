@@ -36,7 +36,7 @@ begin
 
 	asp_avg : entity work.avg_asp
 		generic map(
-			AVG_WINDOW_SIZE => 128
+			AVG_WINDOW_SIZE => 512
 		)
 		port map(
 			clk     => clock,

@@ -5,7 +5,7 @@ use work.TdmaMinTypes.all;
 
 entity avg_asp is
 	generic (
-		AVG_WINDOW_SIZE : natural := 128
+		AVG_WINDOW_SIZE : natural := 2048
 	);
 	port (
 		clk     : in  std_logic;

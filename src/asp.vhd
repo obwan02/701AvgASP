@@ -4,9 +4,6 @@ use ieee.numeric_std.all;
 use work.TdmaMinTypes.all;
 
 entity avg_asp is
-	generic (
-		AVG_WINDOW_SIZE : natural := 2048
-	);
 	port (
 		clk     : in  std_logic;
 		reset   : in  std_logic;
@@ -28,18 +25,19 @@ architecture rtl of avg_asp is
 	signal total_write_enable  : std_logic;
 
 	-- Intermediary signals
-	signal queue_full          : std_logic;
-	signal average             : unsigned(15 downto 0);
-	signal queue_total         : unsigned((15 + log2Ceil(AVG_WINDOW_SIZE)) downto 0) := (others => '0');
+	signal average             : std_logic_vector(15 downto 0);
+	signal division_out        : std_logic_vector(23 downto 0);
+	signal queue_total         : unsigned(23 downto 0) := (others => '0');
+	signal queue_item_count    : std_logic_vector(7 downto 0);
 	signal queue_out           : std_logic_vector(15 downto 0);
 	signal noc_value_reg       : std_logic_vector(15 downto 0);
 
 	-- Configure
 	signal config_dest         : std_logic_vector(3 downto 0) := "0010";
+	signal config_window_size  : unsigned(7 downto 0)         := to_unsigned(16, 8);
 	signal config_enable       : std_logic                    := '1';
 	signal config_passthrough  : std_logic                    := '0';
 	signal config_flush        : std_logic                    := '0';
-
 	signal flush               : std_logic                    := '0';
 begin
 
@@ -52,7 +50,8 @@ begin
 			clk                 => clk,
 			reset               => flush,
 			pkt_in              => noc_in.data,
-			queue_full          => queue_full,
+			queue_item_count    => queue_item_count,
+			window_size         => std_logic_vector(config_window_size),
 			passthrough         => config_passthrough,
 			enable              => config_enable,
 			queue_read_request  => queue_read_request,
@@ -63,17 +62,23 @@ begin
 		);
 
 	ip_queue_inst : entity work.ip_queue
-		generic map(
-			DEPTH => AVG_WINDOW_SIZE
-		)
 		port map(
 			aclr  => flush,
 			clock => clk,
 			data  => noc_value_reg,
 			rdreq => queue_read_request,
 			wrreq => queue_write_request,
-			full  => queue_full,
+			usedw => queue_item_count,
 			q     => queue_out
+		);
+
+	average <= division_out(15 downto 0);
+	ip_div_inst : entity work.ip_div
+		port map(
+			denom    => std_logic_vector(config_window_size),
+			numer    => std_logic_vector(queue_total),
+			quotient => division_out,
+			remain   => open
 		);
 
 	QUEUE_TOTAL_WRITE : process (clk, flush)
@@ -98,21 +103,11 @@ begin
 		end if;
 	end process;
 
-	DIV_GEN : if (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) = (31 downto 0 => '0') generate
-		average <= queue_total(15 + log2Ceil(AVG_WINDOW_SIZE) downto log2Ceil(AVG_WINDOW_SIZE));
-
-	end generate;
-
-	DIV_GEN2 : if (to_unsigned(AVG_WINDOW_SIZE, 32) and (to_unsigned(AVG_WINDOW_SIZE, 32) - 1)) /= (31 downto 0 => '0') generate
-		assert 0 = 1 report "Avg ASP will have reduced performance if AVG_WINDOW_SIZE is not a power of 2" severity failure;
-		average <= resize(queue_total / AVG_WINDOW_SIZE, 16);
-	end generate;
-
 	-- CONFIG PACKET STRUCTURE
-	-- +------------+------------+------+------+-------+------------+-----------+----------+
-	-- | [31 .. 28] | [27 .. 24] | [23] | [22] | [21]  | [15 .. 12] | [11 .. 6] | [5 .. 0] |
-	-- |  1 1 1 1   |    next    |  pt  |  en  | flush |   uint_p1  |  uint_p2  | uint_p3  |
-	-- +-------------------------+------+------+-------+------------+-----------+----------+
+	-- +------------+------------+------+------+-------+-------------+--------------+
+	-- | [31 .. 28] | [27 .. 24] | [23] | [22] | [21]  | [15 .. 8]   |   [7 .. 0]   |
+	-- |  1 1 1 1   |    next    |  pt  |  en  | flush |   RESERVED  |  window_size |
+	-- +-------------------------+------+------+-------+-------------+--------------+
 
 	CONFIG_WRITE : process (clk, reset)
 	begin
@@ -127,7 +122,10 @@ begin
 			end if;
 
 			if config_write_enable = '1' then
-				config_dest        <= noc_in.data(27 downto 24);
+				config_dest <= noc_in.data(27 downto 24);
+				if unsigned(noc_in.data(7 downto 0)) /= 0 then
+					config_window_size <= unsigned(noc_in.data(7 downto 0));
+				end if;
 				config_enable      <= noc_in.data(22);
 				config_passthrough <= noc_in.data(23);
 				config_flush       <= noc_in.data(21);

@@ -40,16 +40,13 @@ use altera_mf.all;
 use work.TdmaMinTypes.log2Ceil;
 
 entity ip_queue is
-	generic (
-		DEPTH : natural
-	);
 	port (
 		aclr  : in  std_logic;
 		clock : in  std_logic;
 		data  : in  std_logic_vector (15 downto 0);
 		rdreq : in  std_logic;
 		wrreq : in  std_logic;
-		full  : out std_logic;
+		usedw : out std_logic_vector(7 downto 0);
 		q     : out std_logic_vector (15 downto 0)
 	);
 end ip_queue;
@@ -78,24 +75,23 @@ architecture SYN of ip_queue is
 			data  : in  std_logic_vector (15 downto 0);
 			rdreq : in  std_logic;
 			wrreq : in  std_logic;
-			full  : out std_logic;
+			usedw : out std_logic_vector(7 downto 0);
 			q     : out std_logic_vector (15 downto 0)
 		);
 	end component;
 
 begin
-	full <= sub_wire0;
-	q    <= sub_wire1(15 downto 0);
+	q <= sub_wire1(15 downto 0);
 
 	scfifo_component : scfifo
 	generic map(
 		add_ram_output_register => "ON",
 		intended_device_family  => "Cyclone V",
-		lpm_numwords            => DEPTH,
+		lpm_numwords            => 256,
 		lpm_showahead           => "OFF",
 		lpm_type                => "scfifo",
 		lpm_width               => 16,
-		lpm_widthu              => log2Ceil(DEPTH),
+		lpm_widthu              => 8,
 		overflow_checking       => "ON",
 		underflow_checking      => "ON",
 		use_eab                 => "ON"
@@ -106,7 +102,7 @@ begin
 		data  => data,
 		rdreq => rdreq,
 		wrreq => wrreq,
-		full  => sub_wire0,
+		usedw => usedw,
 		q     => sub_wire1
 	);
 

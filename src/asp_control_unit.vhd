@@ -10,7 +10,8 @@ entity avg_asp_control_unit is
 
 		-- Inputs
 		pkt_in              : in  std_logic_vector(31 downto 0);
-		queue_full          : in  std_logic;
+		window_size         : in  std_logic_vector(7 downto 0);
+		queue_item_count    : in  std_logic_vector(7 downto 0);
 		passthrough         : in  std_logic;
 		enable              : in  std_logic;
 
@@ -33,7 +34,7 @@ architecture rtl of avg_asp_control_unit is
 	signal next_state : avg_asp_state_t;
 begin
 
-	LOGIC : process (state, pkt_in, queue_full) is
+	LOGIC : process (state, pkt_in, window_size, queue_item_count) is
 	begin
 		-- Control unit is implemented through a Mealy machine
 		queue_read_request  <= '0';
@@ -45,12 +46,17 @@ begin
 
 		case state is
 			when WAITING_FOR_PKT =>
-				if pkt_in(31 downto 28) = "1000" then
-					queue_read_request <= queue_full;
-					next_state         <= UPDATE_TOTAL;
-				end if;
 
-				if pkt_in(31 downto 28) = "1111" then
+				if unsigned(queue_item_count) > unsigned(window_size) then
+					queue_read_request <= '1';
+				elsif pkt_in(31 downto 28) = "1000" then
+					if unsigned(queue_item_count) < unsigned(window_size) then
+						queue_read_request <= '0';
+					else
+						queue_read_request <= '1';
+					end if;
+					next_state <= UPDATE_TOTAL;
+				elsif pkt_in(31 downto 28) = "1111" then
 					config_write_enable <= '1';
 				end if;
 
@@ -58,7 +64,9 @@ begin
 				next_state          <= WAITING_FOR_PKT;
 				queue_write_request <= '1';
 				total_write_enable  <= '1';
-				send_output         <= '1';
+				if unsigned(queue_item_count) + 1 = unsigned(window_size) then
+					send_output <= '1';
+				end if;
 
 		end case;
 	end process;

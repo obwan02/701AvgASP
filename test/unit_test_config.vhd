@@ -16,9 +16,6 @@ architecture rtl of unit_test_config is
 begin
 
 	DUT : entity work.avg_asp
-		generic map(
-			AVG_WINDOW_SIZE => 4
-		)
 		port map(
 			clk     => clk,
 			reset   => reset,
